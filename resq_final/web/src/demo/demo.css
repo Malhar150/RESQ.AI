@@ -1,0 +1,33 @@
+/* Only in the Claude demo build. */
+html.is-demo { --demo-h: 44px; }
+.demobar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2500; height: var(--demo-h);
+  display: flex; align-items: center; gap: 10px; padding: 0 12px;
+  background: #101318; color: #D8DEE6; font-size: 13px; border-bottom: 1px solid #262E39;
+  font-family: var(--font-body);
+}
+.demobar__tag {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+  background: #E4572E; color: #fff; padding: 3px 7px 2px; border-radius: 4px; flex: none;
+}
+.demobar__note { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #9AA6B4; }
+.demobar__switch { display: flex; gap: 2px; background: #1B2129; padding: 3px; border-radius: 9px; flex: none; }
+.demobar__switch button {
+  border: 0; background: transparent; color: #AEB8C5; font: inherit; font-weight: 500; font-size: 12.5px;
+  padding: 5px 10px; border-radius: 7px; min-height: 30px; cursor: pointer; white-space: nowrap;
+}
+.demobar__switch button[aria-selected="true"] { background: #F4F1EA; color: #1B1F24; }
+.demobar__reset {
+  border: 1px solid #313B48; background: transparent; color: #AEB8C5; font: inherit; font-size: 12.5px;
+  border-radius: 7px; padding: 0 10px; min-height: 30px; cursor: pointer; flex: none;
+}
+.demobar button:focus-visible { outline: 2px solid #7FB2FF; outline-offset: 1px; }
+
+html.is-demo .c-top { top: var(--demo-h); }
+html.is-demo .surface-control { height: calc(100dvh - var(--demo-h) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+html.is-demo .k-gate { min-height: calc(100dvh - var(--demo-h)); }
+
+@media (max-width: 560px) {
+  .demobar__note { display: none; }
+  .demobar { justify-content: space-between; }
+}

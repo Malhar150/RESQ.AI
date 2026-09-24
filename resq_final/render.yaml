@@ -1,0 +1,37 @@
+# Render deployment config.
+#
+# How to use it:
+#   1. Push this folder to a GitHub repo.
+#   2. Go to render.com -> New -> Blueprint -> pick that repo.
+#   3. Render reads this file and creates the service.
+#   4. Fill in the environment variables it asks for (they're marked sync:false
+#      below, which means "ask me, don't read from the file" — that's how the
+#      Supabase key stays out of git).
+#
+# You can also skip the blueprint and create a Web Service by hand with:
+#   Build command:  npm install
+#   Start command:  npm start
+
+services:
+  - type: web
+    name: resq-ai-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: ADMIN_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: https://helpful-alfajores-19dd37.netlify.app
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: RATE_LIMIT_PER_MIN
+        value: "20"

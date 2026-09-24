@@ -1,0 +1,99 @@
+/* ==========================================================================
+   RESQ.AI — shared foundation
+   Two surfaces share one vocabulary:
+     .surface-citizen  warm paper, big touch targets, one loud action colour
+     .surface-control  dark operations room, dense, map-first
+   Severity uses the IMD bulletin hues (red / orange / yellow) on both, so a
+   "high" means the same thing to the reporter and to the duty officer.
+   Blue is reserved for the arrival path (mesh relay) and never means severity.
+   ========================================================================== */
+
+:root {
+  --font-display: "Sora", "Hind", "Hind Siliguri", system-ui, sans-serif;
+  --font-body: "Hind", "Hind Siliguri", "Noto Sans Devanagari", "Noto Sans Bengali", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-pill: 999px;
+
+  --ease: cubic-bezier(.2, .7, .2, 1);
+}
+
+html:lang(bn) body, html:lang(as) body { --font-body: "Hind Siliguri", "Hind", "Noto Sans Bengali", system-ui, sans-serif; }
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+}
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+img { max-width: 100%; display: block; }
+h1, h2, h3, h4 { margin: 0; font-family: var(--font-display); font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; }
+html:lang(hi) h1, html:lang(hi) h2, html:lang(hi) h3, html:lang(hi) h4,
+html:lang(bn) h1, html:lang(bn) h2, html:lang(bn) h3, html:lang(bn) h4,
+html:lang(as) h1, html:lang(as) h2, html:lang(as) h3, html:lang(as) h4 { font-family: var(--font-body); letter-spacing: 0; }
+p { margin: 0; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+:focus-visible { outline: 3px solid var(--focus, #2B6CB0); outline-offset: 2px; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes flash { from { background: var(--flash, rgba(228, 87, 46, .22)); } to { background: transparent; } }
+
+.spinner {
+  width: 1em; height: 1em; border-radius: 50%;
+  border: 2px solid currentColor; border-right-color: transparent;
+  display: inline-block; animation: spin .8s linear infinite; vertical-align: -0.15em;
+}
+
+.skeleton {
+  border-radius: var(--r-sm);
+  background: linear-gradient(90deg, var(--sk-a) 0%, var(--sk-b) 50%, var(--sk-a) 100%);
+  background-size: 200% 100%;
+  animation: sk 1.4s ease-in-out infinite;
+}
+@keyframes sk { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* ---- toast ------------------------------------------------------------- */
+.toasts {
+  position: fixed; z-index: 3000; left: 50%; transform: translateX(-50%);
+  bottom: calc(84px + env(safe-area-inset-bottom)); display: grid; gap: 8px;
+  width: min(92vw, 440px); pointer-events: none;
+}
+.toast {
+  pointer-events: auto; padding: 12px 16px; border-radius: var(--r-md);
+  background: #1B1F24; color: #F4F1EA; font-size: 15px; line-height: 1.4;
+  box-shadow: 0 10px 30px rgba(0,0,0,.25); animation: rise .25s var(--ease);
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.toast[data-kind="good"] { border-left: 4px solid #3FA372; }
+.toast[data-kind="bad"] { border-left: 4px solid #E0533F; }
+.toast[data-kind="info"] { border-left: 4px solid #5B9BE0; }
+.toast button { margin-left: auto; background: none; border: 0; color: inherit; opacity: .7; padding: 0 4px; }
+
+/* ---- severity + trust, shared ------------------------------------------ */
+.sev {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 11.5px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: .06em;
+  padding: 3px 8px 2px; border-radius: 4px; white-space: nowrap;
+}
+.sev::before { content: ""; width: 7px; height: 7px; border-radius: 2px; background: currentColor; }
+html:lang(hi) .sev, html:lang(bn) .sev, html:lang(as) .sev { font-family: var(--font-body); font-size: 13px; text-transform: none; letter-spacing: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}

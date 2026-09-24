@@ -1,0 +1,1688 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RESQ.AI — duty desk</title>
+<meta name="description" content="Citizen hazard reports arriving at the state emergency operations centre." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+/* ==========================================================================
+   RESQ.AI duty desk
+   Colour comes from IMD's real bulletin scale (red / orange / yellow / green)
+   because that's the vocabulary Indian disaster managers already read fluently.
+   Cyan is reserved for arrival-path information and never means severity.
+   ========================================================================== */
+:root {
+  color-scheme: dark;
+
+  --silt-900: #0B1A1E;
+  --silt-850: #0E2126;
+  --silt-800: #10252A;
+  --silt-700: #163037;
+  --silt-600: #1C3C44;
+  --rule:     #23474F;
+  --rule-soft:#193840;
+
+  --text:     #DDE9E8;
+  --text-mid: #9DB6B7;
+  --text-dim: #6E8B8E;
+
+  --red:    #D8402F;
+  --orange: #E0821E;
+  --yellow: #DFC24A;
+  --green:  #3E9C6D;
+  --relay:  #4FC3D9;
+
+  --sev-high:   var(--red);
+  --sev-medium: var(--orange);
+  --sev-low:    var(--yellow);
+
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", "Noto Sans Devanagari", "Noto Sans Bengali", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+
+  --rail-w: 132px;
+  --side-w: 400px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  background: var(--silt-900);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+a { color: var(--relay); }
+
+:focus-visible {
+  outline: 2px solid var(--relay);
+  outline-offset: 2px;
+}
+
+.eyebrow {
+  font-family: var(--display);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ---------- shell ------------------------------------------------------- */
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--rail-w) minmax(0, 1fr) var(--side-w);
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100vh;
+}
+
+/* ---------- station header ---------------------------------------------- */
+
+.station {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border-bottom: 1px solid var(--rule);
+  background: var(--silt-850);
+}
+
+.station__mark {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 18px;
+  min-width: var(--rail-w);
+  border-right: 1px solid var(--rule);
+}
+.station__mark b {
+  font-family: var(--display);
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+.station__mark b i { font-style: normal; color: var(--relay); }
+.station__mark span {
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-top: 3px;
+}
+
+.station__desk {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  padding: 0 20px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.deskfact { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.deskfact__k {
+  font-family: var(--display);
+  font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.deskfact__v {
+  font-family: var(--mono); font-size: 13px; color: var(--text-mid);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.link-state {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--mono); font-size: 13px;
+}
+.link-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--text-dim);
+  box-shadow: 0 0 0 0 currentColor;
+}
+.link-state[data-state="up"]   .link-dot { background: var(--green);  animation: pulse 2.6s infinite; }
+.link-state[data-state="down"] .link-dot { background: var(--red); }
+.link-state[data-state="up"]   { color: var(--green); }
+.link-state[data-state="down"] { color: var(--red); }
+
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(62,156,109,.55); }
+  70%  { box-shadow: 0 0 0 7px rgba(62,156,109,0); }
+  100% { box-shadow: 0 0 0 0 rgba(62,156,109,0); }
+}
+
+.station__views { display: flex; align-self: stretch; }
+.viewtab {
+  background: none; border: 0;
+  border-left: 1px solid var(--rule);
+  padding: 0 22px;
+  font-family: var(--display);
+  font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-dim);
+  transition: color .15s, background .15s;
+}
+.viewtab:hover { color: var(--text); background: var(--silt-800); }
+.viewtab[aria-selected="true"] {
+  color: var(--text);
+  background: var(--silt-800);
+  box-shadow: inset 0 -2px 0 var(--relay);
+}
+
+/* ---------- gauge rail (the signature element) -------------------------- */
+/* A river-gauge staff. Assam's flood warnings are read off painted posts in
+   the water, so the console's primary instrument is the same object.        */
+
+.rail {
+  border-right: 1px solid var(--rule);
+  background: var(--silt-850);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.gauge {
+  position: relative;
+  flex: 1;
+  min-height: 200px;
+  margin: 18px 0 8px;
+  display: flex;
+  justify-content: center;
+}
+
+.gauge__staff {
+  position: relative;
+  width: 34px;
+  background: var(--silt-700);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.gauge__fill {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 0;
+  background: linear-gradient(to top, #1D5A6B 0%, #2E7F8F 60%, var(--relay) 100%);
+  transition: height 1.1s cubic-bezier(.2,.8,.2,1), background .5s;
+}
+.gauge__fill[data-band="danger"]  { background: linear-gradient(to top,#6E1E17 0%,#A93122 55%,var(--red) 100%); }
+.gauge__fill[data-band="warning"] { background: linear-gradient(to top,#6E4610 0%,#B06718 55%,var(--orange) 100%); }
+
+/* Painted graduation bands on the staff face */
+.gauge__staff::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(
+    to top,
+    transparent 0 19px,
+    rgba(221,233,232,.22) 19px 20px
+  );
+  pointer-events: none;
+}
+
+.gauge__marks {
+  position: absolute; inset: 0;
+  pointer-events: none;
+}
+.mark {
+  position: absolute; left: 0; right: 0;
+  border-top: 1px dashed currentColor;
+  display: flex; justify-content: flex-start;
+}
+.mark span {
+  font-family: var(--display);
+  font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase;
+  transform: translateY(-100%);
+  padding-bottom: 2px;
+}
+.mark--danger  { color: var(--red);    bottom: 66%; }
+.mark--warning { color: var(--orange); bottom: 33%; }
+
+.rail__readout {
+  padding: 0 12px 14px;
+  text-align: center;
+}
+.rail__value {
+  font-family: var(--display);
+  font-size: 40px; font-weight: 700; line-height: .95;
+}
+.rail__label {
+  font-family: var(--display);
+  font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+.rail__counts {
+  border-top: 1px solid var(--rule);
+}
+.count {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 6px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.count__n { font-family: var(--mono); font-size: 16px; font-weight: 600; }
+.count__k {
+  font-family: var(--display);
+  font-size: 10px; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--text-dim); text-align: right;
+}
+.count--mesh .count__n { color: var(--relay); }
+
+/* ---------- feed --------------------------------------------------------- */
+
+.feed {
+  display: flex; flex-direction: column;
+  min-width: 0; min-height: 0;
+  border-right: 1px solid var(--rule);
+}
+
+.filters {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--silt-850);
+}
+
+.chip {
+  background: var(--silt-700);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 4px 11px;
+  font-family: var(--display);
+  font-size: 13px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--text-mid);
+  transition: .12s;
+}
+.chip:hover { border-color: var(--text-dim); color: var(--text); }
+.chip[aria-pressed="true"] { background: var(--silt-600); color: var(--text); border-color: var(--text-dim); }
+.chip[data-sev="high"][aria-pressed="true"]   { border-color: var(--red);    color: var(--red); }
+.chip[data-sev="medium"][aria-pressed="true"] { border-color: var(--orange); color: var(--orange); }
+.chip[data-sev="low"][aria-pressed="true"]    { border-color: var(--yellow); color: var(--yellow); }
+.chip[data-src="mesh"][aria-pressed="true"]   { border-color: var(--relay);  color: var(--relay); }
+
+.filters__search {
+  flex: 1; min-width: 130px;
+  background: var(--silt-900);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 5px 10px;
+  font-size: 14px;
+}
+.filters__search::placeholder { color: var(--text-dim); }
+
+.filters select {
+  background: var(--silt-900);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 5px 8px;
+  font-size: 13px;
+  color: var(--text-mid);
+}
+
+.sep { width: 1px; align-self: stretch; background: var(--rule); margin: 0 3px; }
+
+.feed__list {
+  flex: 1; overflow-y: auto; min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--silt-600) transparent;
+}
+
+/* report card */
+.card {
+  display: grid;
+  grid-template-columns: 6px 1fr;
+  border-bottom: 1px solid var(--rule-soft);
+  background: none;
+  border-left: 0; border-right: 0; border-top: 0;
+  width: 100%;
+  text-align: left;
+  padding: 0;
+  transition: background .12s;
+}
+.card:hover { background: var(--silt-850); }
+.card[aria-current="true"] { background: var(--silt-800); }
+.card[aria-current="true"] .card__body { box-shadow: inset 0 0 0 1px var(--rule); }
+
+.card__edge { background: var(--text-dim); }
+.card[data-sev="high"]   .card__edge { background: var(--sev-high); }
+.card[data-sev="medium"] .card__edge { background: var(--sev-medium); }
+.card[data-sev="low"]    .card__edge { background: var(--sev-low); }
+
+.card__body { padding: 11px 16px 13px; min-width: 0; }
+
+.card__top {
+  display: flex; align-items: center; gap: 9px;
+  margin-bottom: 5px; flex-wrap: wrap;
+}
+
+.sev {
+  font-family: var(--display);
+  font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase;
+}
+.sev[data-sev="high"]   { color: var(--sev-high); }
+.sev[data-sev="medium"] { color: var(--sev-medium); }
+.sev[data-sev="low"]    { color: var(--sev-low); }
+
+.hazard {
+  font-family: var(--display);
+  font-size: 11px; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--text-mid);
+  border-left: 1px solid var(--rule); padding-left: 9px;
+}
+
+.card__time { margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); }
+
+.card__text {
+  font-size: 14.5px; line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card__meta {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  margin-top: 8px;
+  font-family: var(--mono); font-size: 11.5px; color: var(--text-dim);
+}
+
+/* the hop trail: how the report physically reached the desk */
+.path { display: inline-flex; align-items: center; gap: 5px; }
+.path__label { letter-spacing: .04em; }
+.hop { display: inline-flex; align-items: center; gap: 3px; color: var(--relay); }
+.hop i {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: currentColor; display: inline-block;
+}
+.hop u { width: 9px; height: 1px; background: currentColor; display: inline-block; text-decoration: none; }
+
+.trust {
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.trust__bar {
+  width: 42px; height: 3px; background: var(--silt-600); border-radius: 2px; overflow: hidden;
+}
+.trust__bar i { display: block; height: 100%; background: var(--green); }
+.trust[data-band="fair"]    .trust__bar i { background: var(--yellow); }
+.trust[data-band="weak"]    .trust__bar i { background: var(--orange); }
+.trust[data-band="suspect"] .trust__bar i { background: var(--red); }
+.trust[data-band="suspect"] { color: var(--red); }
+
+.status-tag {
+  font-family: var(--display);
+  font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+  padding: 2px 7px; border: 1px solid var(--rule); border-radius: 2px;
+  color: var(--text-mid);
+}
+.status-tag[data-status="verified"]   { color: var(--green);  border-color: rgba(62,156,109,.5); }
+.status-tag[data-status="dispatched"] { color: var(--relay);  border-color: rgba(79,195,217,.5); }
+.status-tag[data-status="dismissed"]  { color: var(--text-dim); text-decoration: line-through; }
+.status-tag[data-status="resolved"]   { color: var(--text-dim); }
+
+.card--fresh .card__edge { animation: arrive 1.4s ease-out; }
+@keyframes arrive {
+  0%, 40% { box-shadow: 0 0 12px 2px currentColor; filter: brightness(1.9); }
+  100%    { box-shadow: none; filter: none; }
+}
+
+.empty {
+  padding: 46px 28px; text-align: center; color: var(--text-dim);
+}
+.empty b {
+  display: block; font-family: var(--display); font-size: 19px;
+  letter-spacing: .06em; color: var(--text-mid); margin-bottom: 7px;
+  text-transform: uppercase;
+}
+
+/* ---------- side panel --------------------------------------------------- */
+
+.side { display: flex; flex-direction: column; min-height: 0; background: var(--silt-850); }
+
+#map { height: 232px; border-bottom: 1px solid var(--rule); background: var(--silt-800); }
+.leaflet-container { background: var(--silt-800); }
+.leaflet-control-attribution {
+  background: rgba(11,26,30,.82) !important;
+  color: var(--text-dim) !important;
+  font-size: 9px !important;
+}
+.leaflet-control-attribution a { color: var(--text-mid) !important; }
+
+/* Network-free presentation map. It plots the reports' actual coordinates in
+   the Assam / North-East operating area, so the duty desk still works when a
+   venue firewall blocks third-party tile servers. */
+.situation-map {
+  position: relative; height: 100%; overflow: hidden;
+  background:
+    linear-gradient(rgba(79,195,217,.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79,195,217,.08) 1px, transparent 1px),
+    radial-gradient(ellipse at 46% 55%, rgba(45,117,137,.3), transparent 56%),
+    var(--silt-800);
+  background-size: 28px 28px, 28px 28px, auto, auto;
+}
+.situation-map::before {
+  content: ""; position: absolute; inset: 42% -5% auto; height: 28px;
+  border-radius: 50%; transform: rotate(-8deg);
+  background: rgba(79,195,217,.16); border-top: 1px solid rgba(79,195,217,.42);
+}
+.situation-map__title, .situation-map__note {
+  position: absolute; z-index: 1; font-family: var(--display); letter-spacing: .13em;
+  text-transform: uppercase; color: var(--text-mid);
+}
+.situation-map__title { left: 12px; top: 10px; font-size: 11px; }
+.situation-map__note { left: 12px; bottom: 9px; font-size: 9px; color: var(--text-dim); }
+.situation-map__north { position:absolute; right:13px; top:8px; z-index:1; font: 10px var(--mono); color:var(--text-dim); }
+.situation-marker {
+  position: absolute; z-index: 2; width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid var(--text); box-shadow: 0 0 0 3px rgba(11,26,30,.45);
+  transform: translate(-50%, -50%); padding: 0;
+}
+.situation-marker[data-sev="high"] { background: var(--red); }
+.situation-marker[data-sev="medium"] { background: var(--orange); }
+.situation-marker[data-sev="low"] { background: var(--yellow); }
+.situation-marker[aria-current="true"] { outline: 2px solid var(--relay); outline-offset: 3px; }
+
+.detail { flex: 1; overflow-y: auto; min-height: 0; padding: 16px 18px 26px; }
+
+.detail__head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 3px; }
+.detail__id { font-family: var(--mono); font-size: 12px; color: var(--text-dim); margin-left: auto; }
+.detail__text { font-size: 16px; line-height: 1.5; margin: 10px 0 16px; }
+
+.kv { display: grid; grid-template-columns: 96px 1fr; gap: 5px 12px; margin-bottom: 18px; }
+.kv dt {
+  font-family: var(--display); font-size: 10.5px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--text-dim); padding-top: 2px;
+}
+.kv dd { margin: 0; font-family: var(--mono); font-size: 12.5px; color: var(--text-mid); word-break: break-word; }
+
+.section-title {
+  font-family: var(--display);
+  font-size: 11px; letter-spacing: .17em; text-transform: uppercase;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 5px; margin: 0 0 10px;
+}
+
+.flag {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 10px;
+  padding: 8px 0; border-bottom: 1px solid var(--rule-soft);
+}
+.flag__label { font-size: 13.5px; font-weight: 500; }
+.flag__detail { grid-column: 1 / -1; font-size: 12.5px; color: var(--text-dim); line-height: 1.4; }
+.flag__delta { font-family: var(--mono); font-size: 12px; color: var(--green); }
+.flag--neg .flag__delta { color: var(--red); }
+.flag--neg .flag__label { color: var(--red); }
+.flag--zero .flag__delta { color: var(--text-dim); }
+
+.photo {
+  width: 100%; border: 1px solid var(--rule); border-radius: 2px;
+  margin-bottom: 16px; display: block;
+}
+
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0 16px; }
+.act {
+  border: 1px solid var(--rule);
+  background: var(--silt-700);
+  border-radius: 2px;
+  padding: 9px 10px;
+  font-family: var(--display);
+  font-size: 13px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text-mid);
+  transition: .12s;
+}
+.act:hover:not(:disabled) { background: var(--silt-600); color: var(--text); }
+.act:disabled { opacity: .4; cursor: not-allowed; }
+.act--verify:hover:not(:disabled)   { border-color: var(--green); color: var(--green); }
+.act--dispatch:hover:not(:disabled) { border-color: var(--relay); color: var(--relay); }
+.act--dismiss:hover:not(:disabled)  { border-color: var(--red);   color: var(--red); }
+
+/* ---------- report form (citizen side) ----------------------------------- */
+
+.filing {
+  grid-column: 2 / -1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 30px 34px 60px;
+}
+.filing__inner { max-width: 620px; }
+.filing h2 {
+  font-family: var(--display);
+  font-size: 30px; font-weight: 600; letter-spacing: .03em;
+  margin: 6px 0 4px;
+}
+.filing p.lede { color: var(--text-mid); margin: 0 0 26px; line-height: 1.5; max-width: 52ch; }
+
+.field { margin-bottom: 17px; }
+.field > label {
+  display: block;
+  font-family: var(--display);
+  font-size: 11px; letter-spacing: .15em; text-transform: uppercase;
+  color: var(--text-dim); margin-bottom: 6px;
+}
+.field input[type="text"],
+.field input[type="number"],
+.field textarea {
+  width: 100%;
+  background: var(--silt-850);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 9px 11px;
+  font-size: 15px;
+}
+.field textarea { min-height: 108px; resize: vertical; line-height: 1.5; }
+.field .hint { font-size: 12.5px; color: var(--text-dim); margin-top: 6px; line-height: 1.45; }
+
+.row2 { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
+
+.btn {
+  border: 1px solid var(--rule);
+  background: var(--silt-700);
+  border-radius: 2px;
+  padding: 10px 18px;
+  font-family: var(--display);
+  font-size: 14px; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--text);
+  transition: .12s;
+}
+.btn:hover:not(:disabled) { background: var(--silt-600); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn--go { background: var(--relay); color: #06181D; border-color: var(--relay); font-weight: 600; }
+.btn--go:hover:not(:disabled) { background: #6FD3E5; }
+
+.switchbar { display: flex; gap: 0; border: 1px solid var(--rule); border-radius: 2px; width: fit-content; }
+.switchbar button {
+  background: none; border: 0; padding: 7px 16px;
+  font-family: var(--display); font-size: 13px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.switchbar button + button { border-left: 1px solid var(--rule); }
+.switchbar button[aria-pressed="true"] { background: var(--silt-600); color: var(--text); }
+.switchbar button[data-mode="mesh"][aria-pressed="true"] { color: var(--relay); }
+
+.verdict {
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--relay);
+  background: var(--silt-850);
+  padding: 15px 17px;
+  margin-top: 22px;
+}
+.verdict[data-sev="high"]   { border-left-color: var(--red); }
+.verdict[data-sev="medium"] { border-left-color: var(--orange); }
+.verdict[data-sev="low"]    { border-left-color: var(--yellow); }
+.verdict__head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+.verdict__sev { font-family: var(--display); font-size: 22px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.verdict[data-sev="high"]   .verdict__sev { color: var(--red); }
+.verdict[data-sev="medium"] .verdict__sev { color: var(--orange); }
+.verdict[data-sev="low"]    .verdict__sev { color: var(--yellow); }
+.verdict__why { color: var(--text-mid); font-size: 14px; line-height: 1.5; }
+
+.queue {
+  border: 1px solid var(--rule); border-radius: 2px;
+  margin-top: 22px;
+}
+.queue__head {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border-bottom: 1px solid var(--rule);
+  background: var(--silt-850);
+}
+.queue__head b { font-family: var(--display); font-size: 13px; letter-spacing: .14em; text-transform: uppercase; font-weight: 600; }
+.queue__head .mono { color: var(--relay); }
+.queue__items { padding: 4px 14px 10px; max-height: 190px; overflow-y: auto; }
+.queue__item {
+  display: flex; gap: 10px; align-items: baseline;
+  padding: 7px 0; border-bottom: 1px solid var(--rule-soft);
+  font-size: 13.5px;
+}
+.queue__item:last-child { border-bottom: 0; }
+.queue__item .mono { color: var(--text-dim); font-size: 11.5px; flex-shrink: 0; }
+.queue__empty { padding: 14px; color: var(--text-dim); font-size: 13.5px; }
+
+/* ---------- toast -------------------------------------------------------- */
+
+.toast {
+  position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(14px);
+  background: var(--silt-700); border: 1px solid var(--rule); border-left: 3px solid var(--relay);
+  padding: 11px 18px; border-radius: 2px; font-size: 14px;
+  opacity: 0; pointer-events: none; transition: .25s; z-index: 900;
+  max-width: min(560px, 90vw);
+}
+.toast[data-show="true"] { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast[data-kind="bad"] { border-left-color: var(--red); }
+.toast[data-kind="good"] { border-left-color: var(--green); }
+
+/* ---------- settings ----------------------------------------------------- */
+
+.gear {
+  background: none; border: 0; border-left: 1px solid var(--rule);
+  padding: 0 16px; color: var(--text-dim); font-size: 17px;
+}
+.gear:hover { color: var(--text); background: var(--silt-800); }
+
+dialog {
+  background: var(--silt-800); color: var(--text);
+  border: 1px solid var(--rule); border-radius: 3px;
+  padding: 0; width: min(460px, 92vw);
+}
+dialog::backdrop { background: rgba(4,12,14,.72); }
+.dlg__head { padding: 15px 20px; border-bottom: 1px solid var(--rule); }
+.dlg__head h3 { margin: 0; font-family: var(--display); font-size: 19px; letter-spacing: .06em; font-weight: 600; }
+.dlg__body { padding: 18px 20px; }
+.dlg__foot { padding: 13px 20px; border-top: 1px solid var(--rule); display: flex; justify-content: flex-end; gap: 9px; }
+
+[hidden] { display: none !important; }
+
+/* ---------- responsive --------------------------------------------------- */
+
+@media (max-width: 1180px) {
+  .shell { grid-template-columns: var(--rail-w) minmax(0,1fr); grid-template-rows: auto minmax(0,1fr) 300px; }
+  .side { grid-column: 1 / -1; border-top: 1px solid var(--rule); }
+  .feed { border-right: 0; }
+  .filing { grid-column: 1 / -1; }
+}
+@media (max-width: 720px) {
+  .shell { grid-template-columns: 1fr; grid-template-rows: auto auto minmax(0,1fr) 280px; }
+  .rail { flex-direction: row; align-items: center; border-right: 0; border-bottom: 1px solid var(--rule); }
+  .gauge { display: none; }
+  .rail__readout { display: flex; align-items: baseline; gap: 9px; padding: 10px 14px; }
+  .rail__counts { display: flex; flex: 1; border-top: 0; overflow-x: auto; }
+  .count { flex-direction: column; align-items: flex-start; border-bottom: 0; border-left: 1px solid var(--rule-soft); }
+  .station__desk { display: none; }
+  .row2 { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+
+<body>
+
+<div class="shell">
+
+  <!-- ============ station header ============ -->
+  <header class="station">
+    <div class="station__mark">
+      <b>RESQ<i>.</i>AI</b>
+      <span>Duty desk</span>
+    </div>
+
+    <div class="station__desk">
+      <div class="deskfact">
+        <span class="deskfact__k">Local time</span>
+        <span class="deskfact__v mono" id="clock">--:--:--</span>
+      </div>
+      <div class="deskfact">
+        <span class="deskfact__k">Backend</span>
+        <span class="deskfact__v" id="linkState">
+          <span class="link-state" data-state="" id="linkPill"><i class="link-dot"></i><span id="linkText">connecting</span></span>
+        </span>
+      </div>
+      <div class="deskfact">
+        <span class="deskfact__k">Classifier</span>
+        <span class="deskfact__v mono" id="engineText">—</span>
+      </div>
+      <div class="deskfact">
+        <span class="deskfact__k">Last refresh</span>
+        <span class="deskfact__v mono" id="refreshText">—</span>
+      </div>
+    </div>
+
+    <div class="station__views">
+      <button class="viewtab" id="tabDesk"  aria-selected="true"  type="button">Incoming</button>
+      <button class="viewtab" id="tabFile"  aria-selected="false" type="button">File a report</button>
+      <button class="gear" id="btnSettings" type="button" title="Connection settings" aria-label="Connection settings">⚙</button>
+    </div>
+  </header>
+
+  <!-- ============ gauge rail ============ -->
+  <aside class="rail">
+    <div class="gauge">
+      <div class="gauge__staff">
+        <div class="gauge__fill" id="gaugeFill" data-band="normal"></div>
+      </div>
+      <div class="gauge__marks">
+        <div class="mark mark--danger"><span>Danger level</span></div>
+        <div class="mark mark--warning"><span>Warning level</span></div>
+      </div>
+    </div>
+
+    <div class="rail__readout">
+      <div class="rail__value mono" id="gaugeValue">0</div>
+      <div class="rail__label">Open high&#8209;severity</div>
+    </div>
+
+    <div class="rail__counts">
+      <div class="count"><span class="count__n" id="cTotal">0</span><span class="count__k">Reports<br>on file</span></div>
+      <div class="count"><span class="count__n" id="c24h">0</span><span class="count__k">Last<br>24 h</span></div>
+      <div class="count"><span class="count__n" id="cVerified">0</span><span class="count__k">Verified</span></div>
+      <div class="count count--mesh"><span class="count__n" id="cMesh">0</span><span class="count__k">Via<br>mesh</span></div>
+      <div class="count"><span class="count__n" id="cSuspect">0</span><span class="count__k">Flagged<br>suspect</span></div>
+    </div>
+  </aside>
+
+  <!-- ============ feed ============ -->
+  <main class="feed" id="viewDesk">
+    <div class="filters">
+      <button class="chip" data-sev="high"   aria-pressed="false" type="button">High</button>
+      <button class="chip" data-sev="medium" aria-pressed="false" type="button">Medium</button>
+      <button class="chip" data-sev="low"    aria-pressed="false" type="button">Low</button>
+      <div class="sep"></div>
+      <button class="chip" data-status="pending" aria-pressed="false" type="button">Unactioned</button>
+      <button class="chip" data-src="mesh"       aria-pressed="false" type="button">Mesh</button>
+      <div class="sep"></div>
+      <input class="filters__search" id="search" type="search" placeholder="Search descriptions…" aria-label="Search report descriptions" />
+      <select id="sort" aria-label="Sort reports">
+        <option value="newest">Newest first</option>
+        <option value="severity">Most severe first</option>
+        <option value="trust">Least trusted first</option>
+      </select>
+    </div>
+
+    <div class="feed__list" id="list" role="list" aria-live="polite"></div>
+  </main>
+
+  <!-- ============ file a report ============ -->
+  <section class="filing" id="viewFile" hidden>
+    <div class="filing__inner">
+      <p class="eyebrow">Citizen intake</p>
+      <h2>Report a hazard</h2>
+      <p class="lede">
+        Describe what you can see in whatever language you think in — English, Hindi,
+        Assamese or Bengali all work. The desk classifies it on arrival and shows you
+        exactly how it was read.
+      </p>
+
+      <form id="reportForm">
+        <div class="field">
+          <label for="fDesc">What is happening</label>
+          <textarea id="fDesc" required placeholder="Water has entered the ground floor and two elderly people are stuck upstairs"></textarea>
+          <p class="hint">Say who is in danger, where, and how many. Numbers help the desk prioritise.</p>
+        </div>
+
+        <div class="field">
+          <label for="fLat">Location</label>
+          <div class="row2">
+            <input id="fLat" type="number" step="any" placeholder="Latitude" required aria-label="Latitude" />
+            <input id="fLng" type="number" step="any" placeholder="Longitude" required aria-label="Longitude" />
+            <button class="btn" type="button" id="btnLocate">Use my location</button>
+          </div>
+          <p class="hint" id="locHint">Defaults to Guwahati so you can test without granting location access.</p>
+        </div>
+
+        <div class="field">
+          <label for="fPhoto">Photo link (optional)</label>
+          <input id="fPhoto" type="text" placeholder="https://…" />
+          <p class="hint">The desk fingerprints the image and tells you if the same picture has been filed before.</p>
+        </div>
+
+        <div class="field">
+          <label>How this reaches the desk</label>
+          <div class="switchbar" role="group" aria-label="Delivery path">
+            <button type="button" data-mode="online" aria-pressed="true">Network</button>
+            <button type="button" data-mode="mesh"   aria-pressed="false">Device mesh</button>
+          </div>
+          <p class="hint" id="modeHint">Sends straight to the control room over the internet.</p>
+        </div>
+
+        <button class="btn btn--go" id="btnSubmit" type="submit">Send report</button>
+      </form>
+
+      <div class="verdict" id="verdict" hidden>
+        <div class="verdict__head">
+          <span class="verdict__sev" id="vSev">—</span>
+          <span class="hazard" id="vHazard">—</span>
+          <span class="trust" id="vTrust" data-band="fair">
+            <span class="mono" id="vTrustNum">—</span>
+            <span class="trust__bar"><i id="vTrustFill"></i></span>
+          </span>
+        </div>
+        <p class="verdict__why" id="vWhy"></p>
+        <div id="vFlags"></div>
+      </div>
+
+      <div class="queue" id="queueBox" hidden>
+        <div class="queue__head">
+          <b>Held on device</b>
+          <span class="mono" id="queueCount">0 waiting</span>
+          <button class="btn" type="button" id="btnRelay" style="margin-left:auto;padding:6px 14px;">Relay now</button>
+        </div>
+        <div class="queue__items" id="queueItems"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ map + detail ============ -->
+  <aside class="side" id="sidePanel">
+    <div id="map" role="region" aria-label="Map of reported hazards"></div>
+    <div class="detail" id="detail"></div>
+  </aside>
+
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<dialog id="settingsDlg">
+  <form method="dialog">
+    <div class="dlg__head"><h3>Connection</h3></div>
+    <div class="dlg__body">
+      <div class="field">
+        <label for="sApi">Backend address</label>
+        <input id="sApi" type="text" placeholder="https://resq-ai-backend.onrender.com" />
+        <p class="hint">Leave blank to use whatever server delivered this page.</p>
+      </div>
+      <div class="field">
+        <label for="sKey">Admin key</label>
+        <input id="sKey" type="text" placeholder="Needed to verify or dismiss reports" />
+        <p class="hint">The ADMIN_KEY from the backend's environment. Stored in this browser only.</p>
+      </div>
+    </div>
+    <div class="dlg__foot">
+      <button class="btn" value="cancel" type="submit">Cancel</button>
+      <button class="btn btn--go" id="btnSaveSettings" value="save" type="submit">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function () {
+  "use strict";
+
+  /* =====================================================================
+     Configuration
+     ===================================================================== */
+
+  var LS_API = "resq.apiBase";
+  var LS_KEY = "resq.adminKey";
+  var LS_QUEUE = "resq.meshQueue";
+
+  var params = new URLSearchParams(location.search);
+
+  function apiBase() {
+    var fromUrl = params.get("api");
+    if (fromUrl) return fromUrl.replace(/\/$/, "");
+    var saved = localStorage.getItem(LS_API);
+    if (saved) return saved.replace(/\/$/, "");
+    // Opened as a file:// page? Assume the usual local port.
+    if (location.protocol === "file:") return "http://localhost:4000";
+    return "";
+  }
+
+  function adminKey() { return localStorage.getItem(LS_KEY) || ""; }
+
+  function api(path, options) {
+    options = options || {};
+    var headers = Object.assign({ "Content-Type": "application/json" }, options.headers || {});
+    if (adminKey()) headers["x-admin-key"] = adminKey();
+    return fetch(apiBase() + path, Object.assign({}, options, { headers: headers }))
+      .then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (body) {
+          if (!res.ok) {
+            var error = new Error(body.detail || body.error || ("HTTP " + res.status));
+            error.status = res.status;
+            throw error;
+          }
+          return body;
+        });
+      })
+      .catch(function (err) {
+        // Keep a distinct marker for failures where no request reached the
+        // backend. The intake form can safely retain those reports locally.
+        if (err.status === undefined) err.isNetworkError = true;
+        throw err;
+      });
+  }
+
+  /* =====================================================================
+     Small helpers
+     ===================================================================== */
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function ago(iso) {
+    var ms = Date.now() - new Date(iso).getTime();
+    if (!isFinite(ms) || ms < 0) return "—";
+    var m = Math.floor(ms / 60000);
+    if (m < 1) return "just now";
+    if (m < 60) return m + "m ago";
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + "h ago";
+    var d = Math.floor(h / 24);
+    return d + "d ago";
+  }
+
+  function titleise(s) {
+    return String(s || "").replace(/_/g, " ").replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+  }
+
+  function band(score) {
+    if (typeof score !== "number") return "fair";
+    if (score >= 75) return "strong";
+    if (score >= 50) return "fair";
+    if (score >= 30) return "weak";
+    return "suspect";
+  }
+
+  var toastTimer;
+  function toast(message, kind) {
+    var el = $("toast");
+    el.textContent = message;
+    el.setAttribute("data-kind", kind || "info");
+    el.setAttribute("data-show", "true");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.setAttribute("data-show", "false"); }, 4200);
+  }
+
+  /* =====================================================================
+     State
+     ===================================================================== */
+
+  var state = {
+    reports: [],
+    stats: null,
+    selectedId: null,
+    seenIds: null,          // null until first load, so nothing flashes on arrival
+    filters: { severity: [], status: [], source: [], q: "" },
+    sort: "newest",
+    canAct: false
+  };
+
+  /* =====================================================================
+     Map
+     ===================================================================== */
+
+  var map, markerLayer;
+  var mapMode = "embedded";
+
+  function initMap() {
+    // External tile servers are often blocked on presentation Wi-Fi. This
+    // built-in coordinate map has no network dependency and still shows the
+    // live position and severity of every report.
+    map = { panTo: function () {}, invalidateSize: function () {} };
+    drawEmbeddedMarkers();
+  }
+
+  var SEV_COLOUR = { high: "#D8402F", medium: "#E0821E", low: "#DFC24A" };
+
+  function drawMarkers() {
+    if (mapMode === "embedded") {
+      drawEmbeddedMarkers();
+      return;
+    }
+    if (!map || !markerLayer) return;
+    markerLayer.clearLayers();
+
+    visibleReports().forEach(function (r) {
+      if (typeof r.latitude !== "number" || typeof r.longitude !== "number") return;
+      var colour = SEV_COLOUR[r.severity] || "#6E8B8E";
+      var selected = String(r.id) === String(state.selectedId);
+
+      var marker = L.circleMarker([r.latitude, r.longitude], {
+        radius: selected ? 10 : (r.severity === "high" ? 8 : 6),
+        color: selected ? "#DDE9E8" : colour,
+        weight: selected ? 2 : 1.5,
+        fillColor: colour,
+        fillOpacity: 0.72
+      });
+
+      marker.bindTooltip(
+        '<b>' + esc(String(r.severity || "").toUpperCase()) + '</b> — ' +
+        esc(String(r.description || "").slice(0, 90)),
+        { direction: "top" }
+      );
+      marker.on("click", function () { select(r.id, true); });
+      marker.addTo(markerLayer);
+    });
+  }
+
+  function drawEmbeddedMarkers() {
+    var root = $("map");
+    if (!root) return;
+    root.replaceChildren();
+
+    var frame = document.createElement("div");
+    frame.className = "situation-map";
+
+    var title = document.createElement("span");
+    title.className = "situation-map__title";
+    title.textContent = "Assam / North-East situation map";
+    frame.appendChild(title);
+
+    var north = document.createElement("span");
+    north.className = "situation-map__north";
+    north.textContent = "N ↑";
+    frame.appendChild(north);
+
+    var note = document.createElement("span");
+    note.className = "situation-map__note";
+    note.textContent = "Live report coordinates · Brahmaputra corridor";
+    frame.appendChild(note);
+
+    visibleReports().forEach(function (report) {
+      var lat = Number(report.latitude);
+      var lng = Number(report.longitude);
+      if (!isFinite(lat) || !isFinite(lng)) return;
+
+      // The map covers the common Assam / North-East response area. Reports
+      // outside it remain visible at the nearest edge rather than vanishing.
+      var x = Math.max(4, Math.min(96, ((lng - 89) / 8) * 100));
+      var y = Math.max(10, Math.min(90, ((28.5 - lat) / 4.5) * 100));
+      var marker = document.createElement("button");
+      marker.type = "button";
+      marker.className = "situation-marker";
+      marker.setAttribute("data-sev", report.severity || "low");
+      marker.setAttribute("aria-current", String(String(report.id) === String(state.selectedId)));
+      marker.setAttribute("aria-label", (report.severity || "unknown") + " report: " + String(report.description || "").slice(0, 90));
+      marker.title = (report.severity || "unknown").toUpperCase() + " — " + String(report.description || "").slice(0, 90);
+      marker.style.left = x + "%";
+      marker.style.top = y + "%";
+      marker.addEventListener("click", function () { select(report.id, false); });
+      frame.appendChild(marker);
+    });
+
+    root.appendChild(frame);
+  }
+
+  /* =====================================================================
+     Filtering + sorting
+     ===================================================================== */
+
+  function visibleReports() {
+    var f = state.filters;
+    var q = f.q.trim().toLowerCase();
+
+    var rows = state.reports.filter(function (r) {
+      if (f.severity.length && f.severity.indexOf(r.severity) === -1) return false;
+      if (f.status.length && f.status.indexOf(r.status) === -1) return false;
+      if (f.source.length && f.source.indexOf(r.source) === -1) return false;
+      if (q && String(r.description || "").toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    });
+
+    var rank = { high: 0, medium: 1, low: 2 };
+    if (state.sort === "severity") {
+      rows.sort(function (a, b) {
+        var d = (rank[a.severity] ?? 3) - (rank[b.severity] ?? 3);
+        return d || (new Date(b.created_at) - new Date(a.created_at));
+      });
+    } else if (state.sort === "trust") {
+      rows.sort(function (a, b) {
+        var av = typeof a.trust_score === "number" ? a.trust_score : 999;
+        var bv = typeof b.trust_score === "number" ? b.trust_score : 999;
+        return av - bv;
+      });
+    } else {
+      rows.sort(function (a, b) { return new Date(b.created_at) - new Date(a.created_at); });
+    }
+    return rows;
+  }
+
+  /* =====================================================================
+     Rendering — feed
+     ===================================================================== */
+
+  function hopTrail(report) {
+    if (report.source !== "mesh") {
+      return '<span class="path"><span class="path__label">Network</span></span>';
+    }
+    // The relay depth isn't transmitted yet, so show a fixed two-hop trail:
+    // it marks the arrival path without claiming a hop count we don't have.
+    return '<span class="path"><span class="path__label">Mesh</span>' +
+           '<span class="hop"><i></i><u></u><i></i><u></u><i></i></span></span>';
+  }
+
+  function trustBadge(report) {
+    if (typeof report.trust_score !== "number") return "";
+    var b = band(report.trust_score);
+    return '<span class="trust" data-band="' + b + '" title="Trust score ' + report.trust_score + ' of 100">' +
+           '<span>' + esc(titleise(b)) + '</span>' +
+           '<span class="trust__bar"><i style="width:' + report.trust_score + '%"></i></span>' +
+           '</span>';
+  }
+
+  function renderFeed() {
+    var rows = visibleReports();
+    var list = $("list");
+
+    if (!rows.length) {
+      list.innerHTML =
+        '<div class="empty"><b>Nothing matches</b>' +
+        (state.reports.length
+          ? "Clear a filter or widen the search to see the other " + state.reports.length + " reports."
+          : "No reports have reached the desk yet. File one from the intake tab to test the chain.") +
+        '</div>';
+      return;
+    }
+
+    var firstLoad = state.seenIds === null;
+
+    list.innerHTML = rows.map(function (r) {
+      var fresh = !firstLoad && state.seenIds && !state.seenIds.has(String(r.id));
+      return '' +
+        '<button class="card' + (fresh ? " card--fresh" : "") + '" role="listitem" type="button"' +
+        ' data-id="' + esc(r.id) + '" data-sev="' + esc(r.severity) + '"' +
+        ' aria-current="' + (String(r.id) === String(state.selectedId)) + '">' +
+          '<span class="card__edge"></span>' +
+          '<span class="card__body">' +
+            '<span class="card__top">' +
+              '<span class="sev" data-sev="' + esc(r.severity) + '">' + esc(r.severity || "unknown") + '</span>' +
+              (r.hazard_type ? '<span class="hazard">' + esc(titleise(r.hazard_type)) + '</span>' : '') +
+              '<span class="status-tag" data-status="' + esc(r.status) + '">' + esc(r.status || "pending") + '</span>' +
+              '<span class="card__time">' + esc(ago(r.created_at)) + '</span>' +
+            '</span>' +
+            '<span class="card__text">' + esc(r.description) + '</span>' +
+            '<span class="card__meta">' +
+              hopTrail(r) +
+              trustBadge(r) +
+              '<span class="mono">' +
+                (typeof r.latitude === "number" ? r.latitude.toFixed(3) + ", " + r.longitude.toFixed(3) : "no fix") +
+              '</span>' +
+            '</span>' +
+          '</span>' +
+        '</button>';
+    }).join("");
+
+    state.seenIds = new Set(state.reports.map(function (r) { return String(r.id); }));
+  }
+
+  /* =====================================================================
+     Rendering — detail panel
+     ===================================================================== */
+
+  function renderFlags(flags) {
+    if (!Array.isArray(flags) || !flags.length) {
+      return '<p style="color:var(--text-dim);font-size:13px;margin:0">No signals recorded. This report predates trust scoring.</p>';
+    }
+    return flags.map(function (f) {
+      var delta = Number(f.delta) || 0;
+      var cls = delta < 0 ? "flag flag--neg" : (delta === 0 ? "flag flag--zero" : "flag");
+      return '<div class="' + cls + '">' +
+        '<span class="flag__label">' + esc(f.label || f.code) + '</span>' +
+        '<span class="flag__delta">' + (delta > 0 ? "+" : "") + delta + '</span>' +
+        '<span class="flag__detail">' + esc(f.detail || "") + '</span>' +
+      '</div>';
+    }).join("");
+  }
+
+  function renderDetail() {
+    var el = $("detail");
+    var r = state.reports.filter(function (x) { return String(x.id) === String(state.selectedId); })[0];
+
+    if (!r) {
+      el.innerHTML = '<div class="empty"><b>No report selected</b>Pick a card from the feed, or a point on the map, to see how it was assessed.</div>';
+      return;
+    }
+
+    var flags = r.flags;
+    if (typeof flags === "string") { try { flags = JSON.parse(flags); } catch (e) { flags = []; } }
+
+    var b = band(r.trust_score);
+    var locked = !state.canAct;
+
+    el.innerHTML = '' +
+      '<div class="detail__head">' +
+        '<span class="sev" data-sev="' + esc(r.severity) + '" style="font-size:16px">' + esc(r.severity) + '</span>' +
+        (r.hazard_type ? '<span class="hazard">' + esc(titleise(r.hazard_type)) + '</span>' : '') +
+        '<span class="detail__id mono">#' + esc(r.id) + '</span>' +
+      '</div>' +
+
+      '<p class="detail__text">' + esc(r.description) + '</p>' +
+
+      (r.photo_url ? '<img class="photo" src="' + esc(r.photo_url) + '" alt="Photo attached to report ' + esc(r.id) + '" loading="lazy" onerror="this.remove()" />' : '') +
+
+      '<div class="actions">' +
+        '<button class="act act--verify"   data-set="verified"   type="button" ' + (locked ? "disabled" : "") + '>Verify</button>' +
+        '<button class="act act--dispatch" data-set="dispatched" type="button" ' + (locked ? "disabled" : "") + '>Dispatch</button>' +
+        '<button class="act"               data-set="resolved"   type="button" ' + (locked ? "disabled" : "") + '>Resolve</button>' +
+        '<button class="act act--dismiss"  data-set="dismissed"  type="button" ' + (locked ? "disabled" : "") + '>Dismiss</button>' +
+      '</div>' +
+      (locked ? '<p class="hint" style="margin:-8px 0 16px;color:var(--text-dim);font-size:12.5px">Add the admin key under ⚙ to action reports.</p>' : '') +
+
+      '<h4 class="section-title">Record</h4>' +
+      '<dl class="kv">' +
+        '<dt>Filed</dt><dd>' + esc(new Date(r.created_at).toLocaleString()) + ' · ' + esc(ago(r.created_at)) + '</dd>' +
+        '<dt>Status</dt><dd>' + esc(r.status || "pending") + '</dd>' +
+        '<dt>Arrived by</dt><dd>' + (r.source === "mesh" ? "Device mesh relay" : "Network") + '</dd>' +
+        '<dt>Position</dt><dd>' + (typeof r.latitude === "number" ? esc(r.latitude.toFixed(5) + ", " + r.longitude.toFixed(5)) : "no fix") + '</dd>' +
+        (r.language ? '<dt>Language</dt><dd>' + esc(r.language) + '</dd>' : '') +
+        (r.ai_model ? '<dt>Classified by</dt><dd>' + esc(r.ai_model) + (typeof r.ai_confidence === "number" ? " · " + Math.round(r.ai_confidence * 100) + "% sure" : "") + '</dd>' : '') +
+        (r.photo_hash ? '<dt>Photo print</dt><dd>' + esc(r.photo_hash) + '</dd>' : '') +
+      '</dl>' +
+
+      '<h4 class="section-title">Why it scores ' + (typeof r.trust_score === "number" ? r.trust_score + " of 100" : "unrated") + '</h4>' +
+      '<div class="trust" data-band="' + b + '" style="margin-bottom:12px">' +
+        '<span class="mono">' + esc(titleise(b)) + '</span>' +
+        '<span class="trust__bar" style="width:120px"><i style="width:' + (typeof r.trust_score === "number" ? r.trust_score : 0) + '%"></i></span>' +
+      '</div>' +
+      renderFlags(flags);
+
+    Array.prototype.forEach.call(el.querySelectorAll(".act"), function (btn) {
+      btn.addEventListener("click", function () { setStatus(r.id, btn.getAttribute("data-set")); });
+    });
+  }
+
+  /* =====================================================================
+     Rendering — gauge rail
+     ===================================================================== */
+
+  function renderRail() {
+    var s = state.stats;
+    if (!s) return;
+
+    var open = s.openHigh != null ? s.openHigh : (s.high || 0);
+    $("gaugeValue").textContent = open;
+    $("cTotal").textContent = s.total || 0;
+    $("c24h").textContent = s.last24h != null ? s.last24h : "—";
+    $("cVerified").textContent = s.verified || 0;
+    $("cMesh").textContent = s.viaMesh || 0;
+    $("cSuspect").textContent = (s.trust && s.trust.suspect) || 0;
+
+    // The staff reads in reports, not metres: 10 open high-severity reports
+    // fills it. Warning level at 1/3, danger at 2/3, matching the painted marks.
+    var pct = Math.min(100, (open / 10) * 100);
+    var fill = $("gaugeFill");
+    fill.style.height = pct + "%";
+    fill.setAttribute("data-band", pct >= 66 ? "danger" : (pct >= 33 ? "warning" : "normal"));
+  }
+
+  /* =====================================================================
+     Actions
+     ===================================================================== */
+
+  function select(id, panTo) {
+    state.selectedId = id;
+    renderFeed();
+    renderDetail();
+    drawMarkers();
+
+    if (panTo && map) {
+      var r = state.reports.filter(function (x) { return String(x.id) === String(id); })[0];
+      if (r && typeof r.latitude === "number") map.panTo([r.latitude, r.longitude]);
+    }
+  }
+
+  function setStatus(id, status) {
+    api("/reports/" + encodeURIComponent(id), {
+      method: "PATCH",
+      body: JSON.stringify({ status: status })
+    }).then(function (res) {
+      state.reports = state.reports.map(function (r) {
+        return String(r.id) === String(id) ? res.report : r;
+      });
+      renderFeed();
+      renderDetail();
+      drawMarkers();
+      loadStats();
+      toast("Report #" + id + " marked " + status + ".", "good");
+    }).catch(function (err) {
+      toast(/admin key/i.test(err.message)
+        ? "That action needs the admin key. Add it under ⚙."
+        : "Could not update the report: " + err.message, "bad");
+    });
+  }
+
+  /* =====================================================================
+     Loading
+     ===================================================================== */
+
+  function setLink(state_, text) {
+    $("linkPill").setAttribute("data-state", state_);
+    $("linkText").textContent = text;
+  }
+
+  function loadHealth() {
+    return api("/health").then(function (h) {
+      setLink("up", "connected");
+      var engine = h.features && h.features.aiClassifier;
+      $("engineText").textContent = engine === "rules-only" ? "rule engine" : engine;
+      state.canAct = !(h.features && h.features.adminKeySet) || Boolean(adminKey());
+      return h;
+    }).catch(function () {
+      setLink("down", "unreachable");
+      $("engineText").textContent = "—";
+      throw new Error("backend unreachable");
+    });
+  }
+
+  function loadReports() {
+    return api("/reports?limit=300").then(function (res) {
+      state.reports = res.reports || [];
+      renderFeed();
+      renderDetail();
+      drawMarkers();
+      $("refreshText").textContent = new Date().toLocaleTimeString();
+    });
+  }
+
+  function loadStats() {
+    return api("/stats").then(function (s) {
+      state.stats = s;
+      renderRail();
+    });
+  }
+
+  function refresh(showErrors) {
+    return loadHealth()
+      .then(function () { return Promise.all([loadReports(), loadStats()]); })
+      .catch(function (err) {
+        if (showErrors) {
+          toast("Cannot reach the backend at " + (apiBase() || location.origin) + ". Check it is running, or set the address under ⚙.", "bad");
+        }
+      });
+  }
+
+  /* =====================================================================
+     Citizen intake
+     ===================================================================== */
+
+  var deliveryMode = "online";
+
+  function readQueue() {
+    try { return JSON.parse(localStorage.getItem(LS_QUEUE) || "[]"); } catch (e) { return []; }
+  }
+  function writeQueue(items) {
+    localStorage.setItem(LS_QUEUE, JSON.stringify(items));
+    renderQueue();
+  }
+
+  function holdOnDevice(payload) {
+    var items = readQueue();
+    // A retry can reach this function twice; client_id makes the queue idempotent.
+    if (!items.some(function (item) { return item.client_id === payload.client_id; })) {
+      items.push(Object.assign({ queued_at: new Date().toISOString() }, payload));
+      writeQueue(items);
+    }
+  }
+
+  function renderQueue() {
+    var items = readQueue();
+    $("queueBox").hidden = items.length === 0;
+    $("queueCount").textContent = items.length + (items.length === 1 ? " waiting" : " waiting");
+    $("queueItems").innerHTML = items.length
+      ? items.map(function (i) {
+          return '<div class="queue__item"><span class="mono">' + esc(new Date(i.queued_at).toLocaleTimeString()) + '</span>' +
+                 '<span>' + esc(i.description) + '</span></div>';
+        }).join("")
+      : '<p class="queue__empty">Nothing held.</p>';
+  }
+
+  function showVerdict(analysis, report) {
+    var v = $("verdict");
+    var sev = (analysis && analysis.severity) || (report && report.severity) || "low";
+    v.hidden = false;
+    v.setAttribute("data-sev", sev);
+    $("vSev").textContent = sev;
+    $("vHazard").textContent = titleise((analysis && analysis.hazard_type) || (report && report.hazard_type) || "other");
+
+    var score = analysis && typeof analysis.trust_score === "number" ? analysis.trust_score
+              : (report && report.trust_score);
+    if (typeof score === "number") {
+      $("vTrust").hidden = false;
+      $("vTrust").setAttribute("data-band", band(score));
+      $("vTrustNum").textContent = "Trust " + score;
+      $("vTrustFill").style.width = score + "%";
+    } else {
+      $("vTrust").hidden = true;
+    }
+
+    $("vWhy").textContent = (analysis && analysis.reasoning) || "Classified on arrival.";
+    $("vFlags").innerHTML = renderFlags(analysis && analysis.flags);
+    v.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function submitReport(event) {
+    event.preventDefault();
+
+    var payload = {
+      description: $("fDesc").value.trim(),
+      latitude: parseFloat($("fLat").value),
+      longitude: parseFloat($("fLng").value),
+      photo_url: $("fPhoto").value.trim() || null,
+      source: deliveryMode,
+      client_id: (window.crypto && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random())
+    };
+
+    if (!payload.description) { toast("Describe what is happening first.", "bad"); return; }
+    if (!isFinite(payload.latitude) || !isFinite(payload.longitude) ||
+        payload.latitude < -90 || payload.latitude > 90 ||
+        payload.longitude < -180 || payload.longitude > 180) {
+      toast("Add coordinates, or press Use my location.", "bad"); return;
+    }
+
+    // Mesh mode holds the report on the device, exactly as it would with no
+    // signal, until the operator relays the queue.
+    if (deliveryMode === "mesh") {
+      holdOnDevice(payload);
+      $("reportForm").reset();
+      setDefaultLocation();
+      toast("Held on device. It will go out when you relay the queue.", "info");
+      return;
+    }
+
+    var btn = $("btnSubmit");
+    btn.disabled = true;
+    btn.textContent = "Sending…";
+
+    api("/reports", { method: "POST", body: JSON.stringify(payload) })
+      .then(function (res) {
+        showVerdict(res.analysis, res.report);
+        $("reportForm").reset();
+        setDefaultLocation();
+        toast("Report filed. The desk has it.", "good");
+        return Promise.all([loadReports(), loadStats()]);
+      })
+      .catch(function (err) {
+        if (err.isNetworkError || navigator.onLine === false) {
+          payload.source = "mesh";
+          holdOnDevice(payload);
+          $("reportForm").reset();
+          setDefaultLocation();
+          toast("No connection. Report held on this device and will relay when online.", "info");
+        } else {
+          toast("Could not send: " + err.message, "bad");
+        }
+      })
+      .finally(function () { btn.disabled = false; btn.textContent = "Send report"; });
+  }
+
+  function relayQueue() {
+    var items = readQueue();
+    if (!items.length) return;
+
+    var btn = $("btnRelay");
+    btn.disabled = true;
+    btn.textContent = "Relaying…";
+
+    api("/reports/sync", {
+      method: "POST",
+      body: JSON.stringify({
+        reports: items.map(function (i) {
+          return {
+            client_id: i.client_id,
+            description: i.description,
+            latitude: i.latitude,
+            longitude: i.longitude,
+            photo_url: i.photo_url,
+            source: "mesh"
+          };
+        })
+      })
+    }).then(function (res) {
+      // A sync batch can be partly accepted. Only remove reports the server
+      // accepted or already had; retain validation failures for the user.
+      var failedIds = new Set(((res.details && res.details.failed) || [])
+        .map(function (failure) { return failure.client_id; })
+        .filter(Boolean));
+      writeQueue(items.filter(function (item) { return failedIds.has(item.client_id); }));
+      toast(res.accepted + " report" + (res.accepted === 1 ? "" : "s") + " relayed to the desk" +
+            (res.skipped ? ", " + res.skipped + " already known" : "") +
+            (failedIds.size ? ", " + failedIds.size + " kept for correction" : "") + ".", "good");
+      if (res.reports && res.reports.length) showVerdict(null, res.reports[0]);
+      return Promise.all([loadReports(), loadStats()]);
+    }).catch(function (err) {
+      toast("Relay failed: " + err.message, "bad");
+    }).finally(function () {
+      btn.disabled = false;
+      btn.textContent = "Relay now";
+    });
+  }
+
+  function setDefaultLocation() {
+    if (!$("fLat").value) $("fLat").value = "26.1445";
+    if (!$("fLng").value) $("fLng").value = "91.7362";
+  }
+
+  /* =====================================================================
+     Wiring
+     ===================================================================== */
+
+  function switchView(which) {
+    var desk = which === "desk";
+    $("tabDesk").setAttribute("aria-selected", String(desk));
+    $("tabFile").setAttribute("aria-selected", String(!desk));
+    $("viewDesk").hidden = !desk;
+    $("viewFile").hidden = desk;
+    $("sidePanel").hidden = !desk;
+    if (desk && map) setTimeout(function () { map.invalidateSize(); }, 60);
+  }
+
+  function wire() {
+    // view tabs
+    $("tabDesk").addEventListener("click", function () { switchView("desk"); });
+    $("tabFile").addEventListener("click", function () { switchView("file"); });
+
+    // filter chips
+    Array.prototype.forEach.call(document.querySelectorAll(".chip"), function (chip) {
+      chip.addEventListener("click", function () {
+        var on = chip.getAttribute("aria-pressed") === "true";
+        chip.setAttribute("aria-pressed", String(!on));
+
+        ["sev", "status", "src"].forEach(function (attr) {
+          var value = chip.getAttribute("data-" + attr);
+          if (!value) return;
+          var key = attr === "sev" ? "severity" : (attr === "src" ? "source" : "status");
+          var list = state.filters[key];
+          var i = list.indexOf(value);
+          if (on && i > -1) list.splice(i, 1);
+          else if (!on && i === -1) list.push(value);
+        });
+
+        renderFeed();
+        drawMarkers();
+      });
+    });
+
+    $("search").addEventListener("input", function (e) {
+      state.filters.q = e.target.value;
+      renderFeed();
+      drawMarkers();
+    });
+
+    $("sort").addEventListener("change", function (e) {
+      state.sort = e.target.value;
+      renderFeed();
+    });
+
+    // feed selection (delegated, so it survives re-renders)
+    $("list").addEventListener("click", function (e) {
+      var card = e.target.closest(".card");
+      if (card) select(card.getAttribute("data-id"), true);
+    });
+
+    // settings
+    $("btnSettings").addEventListener("click", function () {
+      $("sApi").value = localStorage.getItem(LS_API) || "";
+      $("sKey").value = localStorage.getItem(LS_KEY) || "";
+      $("settingsDlg").showModal();
+    });
+
+    $("btnSaveSettings").addEventListener("click", function () {
+      var apiValue = $("sApi").value.trim();
+      var keyValue = $("sKey").value.trim();
+      if (apiValue) localStorage.setItem(LS_API, apiValue.replace(/\/$/, ""));
+      else localStorage.removeItem(LS_API);
+      if (keyValue) localStorage.setItem(LS_KEY, keyValue);
+      else localStorage.removeItem(LS_KEY);
+      setTimeout(function () { refresh(true).then(renderDetail); }, 50);
+      toast("Connection saved.", "good");
+    });
+
+    // intake form
+    $("reportForm").addEventListener("submit", submitReport);
+    $("btnRelay").addEventListener("click", relayQueue);
+
+    window.addEventListener("online", function () {
+      if (readQueue().length) relayQueue();
+    });
+
+    Array.prototype.forEach.call(document.querySelectorAll(".switchbar button"), function (btn) {
+      btn.addEventListener("click", function () {
+        deliveryMode = btn.getAttribute("data-mode");
+        Array.prototype.forEach.call(document.querySelectorAll(".switchbar button"), function (b) {
+          b.setAttribute("aria-pressed", String(b === btn));
+        });
+        $("modeHint").textContent = deliveryMode === "mesh"
+          ? "Held on this device as if there were no signal, then relayed as a batch — the same path a Bluetooth mesh report takes."
+          : "Sends straight to the control room over the internet.";
+        $("btnSubmit").textContent = deliveryMode === "mesh" ? "Hold on device" : "Send report";
+      });
+    });
+
+    $("btnLocate").addEventListener("click", function () {
+      if (!navigator.geolocation) { toast("This browser has no location support.", "bad"); return; }
+      $("locHint").textContent = "Asking your browser for a fix…";
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        $("fLat").value = pos.coords.latitude.toFixed(6);
+        $("fLng").value = pos.coords.longitude.toFixed(6);
+        $("locHint").textContent = "Using your current position, accurate to about " + Math.round(pos.coords.accuracy) + " m.";
+      }, function () {
+        $("locHint").textContent = "Location was refused. Type the coordinates, or keep the Guwahati default.";
+      }, { enableHighAccuracy: true, timeout: 8000 });
+    });
+
+    // clock
+    setInterval(function () {
+      $("clock").textContent = new Date().toLocaleTimeString("en-IN", { hour12: false });
+    }, 1000);
+    $("clock").textContent = new Date().toLocaleTimeString("en-IN", { hour12: false });
+
+    // keep timestamps honest without a full reload
+    setInterval(function () { if (!$("viewDesk").hidden) renderFeed(); }, 60000);
+  }
+
+  /* =====================================================================
+     Boot
+     ===================================================================== */
+
+  initMap();
+  wire();
+  setDefaultLocation();
+  renderQueue();
+  renderDetail();
+  refresh(true);
+  setInterval(function () { refresh(false); }, 15000);
+})();
+</script>
+</body>
+</html>

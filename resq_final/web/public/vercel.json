@@ -1,0 +1,6 @@
+{
+  "rewrites": [{ "source": "/((?!assets/|.*\\..*).*)", "destination": "/index.html" }],
+  "headers": [
+    { "source": "/(sw.js|config.js|index.html)", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
+  ]
+}
